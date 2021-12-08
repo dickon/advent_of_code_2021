@@ -280,10 +280,13 @@ def signals_to_number(signals, inv_mapping):
     return int(out, 10)
 
 def deduce(s10):
+    """ Deduce the scrambled 7 segment mapping given 10 digits of sample data. """
+    # we know certain digits via their unique number of elements set
     one = find_unique_length(2, s10)
     four = find_unique_length(4, s10)
     seven = find_unique_length(3, s10)
-    eight = find_unique_length(7, s10)
+    eight = find_unique_length(7, s10) # unused
+
     mapping = {}
     mapping['a'] = singlev(seven - one)
     print(mapping)
@@ -293,6 +296,8 @@ def deduce(s10):
     abdeg = eight - one # not useful?
     assert bd.union(aeg) == abdeg # just for sanity, not deductive
     print('abdeg=', abdeg, 'sum=', bd.union(aeg))        
+
+    # the rest we can work out using the number of times each element comes up, coupled with what we already know
 
     # a occurs in 8 digits
     # b occurs in 6 digits
@@ -340,9 +345,7 @@ def deduce(s10):
 
 def part2(data):
     result =[]
-    for row in data:
-        s10 = row[0]
-        payload = row[1]
+    for [s10, payload] in data:
         mapping = deduce(s10)
         print(mapping)
         bmapping = brute(s10)
