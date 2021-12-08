@@ -287,8 +287,9 @@ def part2(data):
         four = find_unique_length(4, s10)
         seven = find_unique_length(3, s10)
         eight = find_unique_length(7, s10)
-        a = singlev(seven - one)
-        print('a=', a)
+        mapping = {}
+        mapping['a'] = singlev(seven - one)
+        print(mapping)
         bd = four - one
         aeg = eight - four
         print('bd=', bd, 'aeg=', aeg)
@@ -314,26 +315,24 @@ def part2(data):
             inv_occurrences[v] = inv_occurrences.get(v, []) + [k]
         print(inv_occurrences)
         assert len(inv_occurrences[9]) == 1
-        f = inv_occurrences[9][0]
+        mapping['f'] = inv_occurrences[9][0]
         assert len(inv_occurrences[6]) == 1        
-        b = inv_occurrences[6][0]
+        mapping['b'] = inv_occurrences[6][0]
         assert len(inv_occurrences[4]) == 1        
-        e = inv_occurrences[4][0]
+        mapping['e'] = inv_occurrences[4][0]
 
         # the one digit pattern, is known, and consists of c and f. Since f is known we can deduce c.
-        c = list(one - set([f]))[0]
+        mapping['c'] = list(one - set([mapping['f']]))[0]
 
         # check: c can also be deduced because it has 8 occurrences, as does a, and we know a at this point
-        c2 = singlev(list(set(inv_occurrences[8]) - set([a])))
-        assert c == c2
+        c2 = singlev(list(set(inv_occurrences[8]) - set([mapping['a']])))
+        assert mapping['c'] == c2
 
-        d = singlev(bd - set([b]))
+        mapping['d'] = singlev(bd - set([mapping['b']]))
 
         dg = set(inv_occurrences[7])         # 7 occurrences is d and g 
-        g = singlev(dg - set([d]))
+        mapping['g'] = singlev(dg - set([mapping['d']]))
 
-
-        mapping = {'a': a, 'b': b, 'c':c, 'd': d, 'e': e, 'f':f, 'g':g}
         # confirm we had no ambiguity
         seq = mapping.values()
         for ix, x in enumerate(seq):
