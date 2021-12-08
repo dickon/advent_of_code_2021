@@ -1,4 +1,5 @@
 from collections import Counter
+import itertools
 sample = """
 be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe
 edbfga begcd cbg gc gcadebf fbgde acbgfd abcde gfcbed gfec | fcgedb cgb dgebacf gc
@@ -225,6 +226,7 @@ SEVEN_SEGMENTS = [
     ' gggg '
 ]
 DIGITS = ['abcefg', 'cf', 'acdeg', 'acdfg', 'bcdf', 'abdfg', 'abdefg', 'acf', 'abcdefg', 'abcdfg']
+LETTERS = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
 assert len(DIGITS)== 10
 
 def parse(text):
@@ -277,69 +279,75 @@ def signals_to_number(signals, inv_mapping):
         out += str(digit)
     return int(out, 10)
 
+def deduce(s10):
+    one = find_unique_length(2, s10)
+    four = find_unique_length(4, s10)
+    seven = find_unique_length(3, s10)
+    eight = find_unique_length(7, s10)
+    mapping = {}
+    mapping['a'] = singlev(seven - one)
+    print(mapping)
+    bd = four - one
+    aeg = eight - four
+    print('bd=', bd, 'aeg=', aeg)
+    abdeg = eight - one # not useful?
+    assert bd.union(aeg) == abdeg # just for sanity, not deductive
+    print('abdeg=', abdeg, 'sum=', bd.union(aeg))        
+
+    # a occurs in 8 digits
+    # b occurs in 6 digits
+    # c occurs in 8 digits
+    # d occurs in 7 digits
+    # e occurs in 4 digits
+    # f occurs in 9 digits
+    # g occurs in 7 digits
+
+    occurrences = Counter()
+    for digit in s10:
+        for elem in digit:
+            occurrences[elem] += 1
+    print(occurrences)
+    inv_occurrences = {}
+    for k, v in occurrences.items():
+        inv_occurrences[v] = inv_occurrences.get(v, []) + [k]
+    print(inv_occurrences)
+    assert len(inv_occurrences[9]) == 1
+    mapping['f'] = inv_occurrences[9][0]
+    assert len(inv_occurrences[6]) == 1        
+    mapping['b'] = inv_occurrences[6][0]
+    assert len(inv_occurrences[4]) == 1        
+    mapping['e'] = inv_occurrences[4][0]
+
+    # the one digit pattern, is known, and consists of c and f. Since f is known we can deduce c.
+    mapping['c'] = list(one - set([mapping['f']]))[0]
+
+    # check: c can also be deduced because it has 8 occurrences, as does a, and we know a at this point
+    c2 = singlev(list(set(inv_occurrences[8]) - set([mapping['a']])))
+    assert mapping['c'] == c2
+
+    mapping['d'] = singlev(bd - set([mapping['b']]))
+
+    dg = set(inv_occurrences[7])         # 7 occurrences is d and g 
+    mapping['g'] = singlev(dg - set([mapping['d']]))
+
+    # confirm we had no ambiguity
+    seq = mapping.values()
+    for ix, x in enumerate(seq):
+        for iy, y in enumerate(seq):
+            if ix != iy:
+                assert x!=y
+    return mapping
+
 def part2(data):
     result =[]
     for row in data:
         s10 = row[0]
         payload = row[1]
-        print(s10)
-        one = find_unique_length(2, s10)
-        four = find_unique_length(4, s10)
-        seven = find_unique_length(3, s10)
-        eight = find_unique_length(7, s10)
-        mapping = {}
-        mapping['a'] = singlev(seven - one)
+        mapping = deduce(s10)
         print(mapping)
-        bd = four - one
-        aeg = eight - four
-        print('bd=', bd, 'aeg=', aeg)
-        abdeg = eight - one # not useful?
-        assert bd.union(aeg) == abdeg # just for sanity, not deductive
-        print('abdeg=', abdeg, 'sum=', bd.union(aeg))        
-
-        # a occurs in 8 digits
-        # b occurs in 6 digits
-        # c occurs in 8 digits
-        # d occurs in 7 digits
-        # e occurs in 4 digits
-        # f occurs in 9 digits
-        # g occurs in 7 digits
-
-        occurrences = Counter()
-        for digit in s10:
-            for elem in digit:
-                occurrences[elem] += 1
-        print(occurrences)
-        inv_occurrences = {}
-        for k, v in occurrences.items():
-            inv_occurrences[v] = inv_occurrences.get(v, []) + [k]
-        print(inv_occurrences)
-        assert len(inv_occurrences[9]) == 1
-        mapping['f'] = inv_occurrences[9][0]
-        assert len(inv_occurrences[6]) == 1        
-        mapping['b'] = inv_occurrences[6][0]
-        assert len(inv_occurrences[4]) == 1        
-        mapping['e'] = inv_occurrences[4][0]
-
-        # the one digit pattern, is known, and consists of c and f. Since f is known we can deduce c.
-        mapping['c'] = list(one - set([mapping['f']]))[0]
-
-        # check: c can also be deduced because it has 8 occurrences, as does a, and we know a at this point
-        c2 = singlev(list(set(inv_occurrences[8]) - set([mapping['a']])))
-        assert mapping['c'] == c2
-
-        mapping['d'] = singlev(bd - set([mapping['b']]))
-
-        dg = set(inv_occurrences[7])         # 7 occurrences is d and g 
-        mapping['g'] = singlev(dg - set([mapping['d']]))
-
-        # confirm we had no ambiguity
-        seq = mapping.values()
-        for ix, x in enumerate(seq):
-            for iy, y in enumerate(seq):
-                if ix != iy:
-                    assert x!=y
-        print(mapping)
+        bmapping = brute(s10)
+        print('potential mappings', bmapping)
+        assert mapping == bmapping[0]
         inv_mapping = {v: k for k, v in mapping.items()}
         print('inverse', inv_mapping)
         # render text
@@ -351,6 +359,20 @@ def part2(data):
         result.append(x)
     return result
         
+def brute(data):
+    out = []
+    for mapping_permutation in itertools.permutations(''.join(LETTERS)):
+        mpl = list(mapping_permutation)
+        mapping = { LETTERS[i]: mapping_permutation[i] for i in range(len(mapping_permutation)) }
+        inv_mapping = {v: k for k, v in mapping.items()}
+
+        try: 
+            x = signals_to_number(data, inv_mapping)
+            out.append(mapping)
+        except ValueError:
+            pass
+    return out            
+
 res = part2(data)
 assert sum(res) == 61229
 realres = part2(realdata)
