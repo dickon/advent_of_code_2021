@@ -347,9 +347,9 @@ def part2(data):
     result =[]
     for [s10, payload] in data:
         mapping = deduce(s10)
-        print(mapping)
+        print('deduced mapping', mapping)
         bmapping = brute(s10)
-        print('potential mappings', bmapping)
+        print('potential mapping via brute force, for confirmation', bmapping)
         assert mapping == bmapping[0]
         inv_mapping = {v: k for k, v in mapping.items()}
         print('inverse', inv_mapping)
