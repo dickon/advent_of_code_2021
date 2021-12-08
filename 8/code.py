@@ -359,7 +359,8 @@ def part2(data):
         result.append(x)
     return result
         
-def brute(data):
+def brute(digits):
+    """Find all mappings which successfully decode the given digits, by brute force"""
     out = []
     for mapping_permutation in itertools.permutations(''.join(LETTERS)):
         mpl = list(mapping_permutation)
@@ -367,7 +368,7 @@ def brute(data):
         inv_mapping = {v: k for k, v in mapping.items()}
 
         try: 
-            x = signals_to_number(data, inv_mapping)
+            x = signals_to_number(digits, inv_mapping)
             out.append(mapping)
         except ValueError:
             pass
