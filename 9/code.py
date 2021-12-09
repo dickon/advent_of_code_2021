@@ -146,6 +146,7 @@ def flood(data, x, y, v, touched):
         return
     touched.append( (x,y) )
     data[y][x] = v
+    # this repeats the pattern from find_lows but the rule of 2 thankfully saves me from figuring out a general version
     if x > 0: flood(data, x-1, y, v, touched)
     if x < len(data[0])-1: flood(data, x+1, y, v, touched)
     if y > 0: flood(data, x, y-1, v, touched)
