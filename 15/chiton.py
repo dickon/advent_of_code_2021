@@ -1,5 +1,6 @@
 import time
 import sys
+import pprint
 sys.setrecursionlimit(10000)
 sample="""
 1163751742
@@ -124,6 +125,55 @@ assert len(sample_grid) == 10
 assert len(sample_grid[0]) == 10
 assert sample_grid[0][0] == 1
 
+def bfs(grid, label):
+    goal = (len(grid[0])-1, len(grid)-1)
+
+    posl= [(0,0)]
+    lowest = {}
+    lowest[ (0,0) ] = 0
+    changed = [ (0,0) ]
+    highest = 0
+    gen = 0
+    while changed:
+        print(gen, len(changed))
+        nchanged = []
+        for pos in changed:
+            risk = lowest[pos]
+            for (dx,dy) in [(1,0), (0,1), (-1, 0), (0, -1)]:
+                nx = pos[0] + dx
+                ny = pos[1] + dy
+                if nx < 0 or nx >= len(grid[0]) or ny < 0 or ny >= len(grid):
+                    continue
+                r = grid[ny][nx] + risk
+                highest = max(highest, r)
+                if (nx,ny) not in lowest or lowest[(nx,ny)] > r:
+                    lowest[(nx,ny)] = r
+                    nchanged.append((nx,ny))
+        html = '<html><script src="https://cdn.tailwindcss.com"></script><body><table>'   
+        for y in range(len(grid)):
+            html += '<tr>'
+            for x in range(len(grid[0])):
+                v = lowest.get( (x,y)  )
+                risk = grid[y][x]
+                if v is not None:
+                    factor = int((1.0 - (v/highest)) * 240)
+                    shade = '%02x' % (factor,)
+                    col = '#'+shade+shade+shade
+                else:
+                    col = '#8080ff'
+                #content = str(v) if v is not None else '--'
+                #content = 'o' if v is not None else '.'
+                content = '#'
+                html += '<td bgcolor="'+col+'"><span title="'+str(risk)+' lowest risk '+str(v)+'"> '+content+' </span></td>'
+            html += '</tr>'
+        html += '</table></body></html>'
+        with open(label+'.html', 'w') as o:
+            o.write(html)
+        changed = nchanged
+        gen += 1
+    return lowest[goal]
+            
+
 def walk(grid, verbose=False, start=(0,0), goal=None, start_risk=40,  banned=[]):
     safest = {}
     last_show = [time.time()]
@@ -242,24 +292,40 @@ def walk(grid, verbose=False, start=(0,0), goal=None, start_risk=40,  banned=[])
 sample_r = walk(sample_grid)
 assert sample_r == 40
 
-real_r = walk(parse(real), False, start_risk=4102, 
-  banned = [
-      (0, 5), (1,5), (2,5), (0,6), (0,7), (1,6), (1,7), (4,4), (5,7),
-      (15, 5), (16, 5), (17, 5), (18, 5), (19, 5),
-      (49, 7),
-      (38, 12), (39, 12), (40, 12),
-      (19, 16), (20, 16), (21, 16),
-      (78, 38), (79, 38), (80, 38), (81, 38),
-      (75, 6), (76, 6), (77, 6), (78, 6), (79, 6), (80, 6),
-      (78, 42), (79, 42),
-      (96, 49), (97, 44),
-      (99, 50), (98, 50), (97, 50), (97, 49),
-      (99, 46), (99, 47), (98, 48), (99, 48), (98, 48),
-      (79, 39),
-      #(82, 97),
-      #(96, 43), (98, 46),
-       #(99, 41), (99, 42), (98, 42), (98, 43), (98, 44), (98, 45),
-       #(95, 41), (96, 41), (97, 41), (98, 41), (98, 40),
-       #(92, 49)
-      ])
+def scaleup(grid):
+    grid2 = []
+    for cell in range(5):
+        for line in grid:
+            line2 = []
+            for x in range(5):
+                line2 += [((v+x+cell - 1)%9) + 1 for v in line]
+            grid2.append(line2)
+    return grid2
+
+            
+
+print(bfs(parse(real), 'r1'))
+print(bfs(scaleup(parse(real)), 'r2'))
+
+if 0:
+    real_r = walk(parse(real), False, start_risk=3982, 
+    banned = [
+        (0, 5), (1,5), (2,5), (0,6), (0,7), (1,6), (1,7), (4,4), (5,7),
+        (15, 5), (16, 5), (17, 5), (18, 5), (19, 5),
+        (49, 7),
+        (38, 12), (39, 12), (40, 12),
+        (19, 16), (20, 16), (21, 16),
+        (78, 38), (79, 38), (80, 38), (81, 38),
+        (75, 6), (76, 6), (77, 6), (78, 6), (79, 6), (80, 6),
+        (78, 42), (79, 42),
+        (96, 49), (97, 44),
+        (99, 50), (98, 50), (97, 50), (97, 49),
+        (99, 46), (99, 47), (98, 48), (99, 48), (98, 48),
+        (79, 39),
+        #(82, 97),
+        #(96, 43), (98, 46),
+        #(99, 41), (99, 42), (98, 42), (98, 43), (98, 44), (98, 45),
+        #(95, 41), (96, 41), (97, 41), (98, 41), (98, 40),
+        #(92, 49)
+        ])
 
