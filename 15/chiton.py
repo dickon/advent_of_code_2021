@@ -1,5 +1,6 @@
 import time
-
+import sys
+sys.setrecursionlimit(10000)
 sample="""
 1163751742
 1381373672
@@ -123,29 +124,48 @@ assert len(sample_grid) == 10
 assert len(sample_grid[0]) == 10
 assert sample_grid[0][0] == 1
 
-def walk(grid, verbose=False, start=(0,0), goal=None, start_risk=40):
+def walk(grid, verbose=False, start=(0,0), goal=None, start_risk=40,  banned=[]):
+    safest = {}
     last_show = [time.time()]
     if goal is None:
         goal = (len(grid[0])-1, len(grid)-1)
     acceptable_risk = [start_risk]
     def step(pos, visited, risk):
-        if verbose or risk > acceptable_risk[0] or pos == goal or time.time() - last_show[-1] > 5:
+        if safest.get(pos) is None or safest[pos] > risk:
+            safest[pos] = risk
+        if safest[pos] < risk:
+            if verbose:
+                print('this is not the safest way found yet to reach', pos)
+            return
+        if pos == goal:
+            print('SOLUTION', risk)
+        if verbose or risk > acceptable_risk[0] or (pos == goal and risk < acceptable_risk[0]) or time.time() - last_show[-1] > 5:
             last_show.append(time.time())
-            print('at', pos, 'path', visited, 'steps total risk so far', risk, 'acceptable', acceptable_risk[0])
+            print('at', pos, 
+                #'path', visited, 
+                'steps total risk so far', risk, 'acceptable', acceptable_risk[0])
+            # for y in range(len(grid)):
+            #     vs = []
+            #     for x, v in enumerate(grid[y]):
+            #         if (x,y) in visited:
+            #             vs.append( (x,y))
+            #     if vs:
+            #         print(y, vs)
             for y in range(len(grid)):
-                line = ''
+                line = '%03d '%y
                 for x, v in enumerate(grid[y]):
-                    line += '*' if (x,y) == pos else (str(v) if (x,y) not in visited else '.')
+                    line += ('\033[94m\033[1m' + '*' + '\033[0m') if (x,y) == pos else (('#' if (x,y) in banned else str(v)) if (x,y) not in visited else '.')
                 print(line)
         if pos == goal:
             if verbose:
                 print('found goal in risk', risk)
-                acceptable_risk[0] = risk
+            acceptable_risk[0] = risk
             return risk
         if risk > acceptable_risk[0]:            
             return None
         outcomes = {}
         directions = {}
+        nearby_already = 0
         for (dx,dy) in [(1,0), (0,1), (-1, 0), (0, -1)]:
             nx = pos[0] + dx
             ny = pos[1] + dy
@@ -153,14 +173,23 @@ def walk(grid, verbose=False, start=(0,0), goal=None, start_risk=40):
                 if verbose and 0:
                     print('cannot go', (dx,dy), 'since that leaves the grid')
                 continue
+            if (nx, ny) in banned:
+                if verbose:
+                    print('cannot go', (dx,dy), 'since', (nx,ny), 'is banned')
+                continue
             if (nx, ny) in visited:
                 if verbose and 0:
                     print('cannot go', (dx,dy), 'since we have already been there')
+                nearby_already += 1
                 continue
             
             r = grid[ny][nx]
             directions.setdefault(r, list())
             directions[r].append( (nx, ny) )
+        if nearby_already > 1:
+            if verbose:
+                print('too many nearby already visited', nearby_already, pos)
+                return
         if verbose:
             print('direction risks', directions)
         direction_risks= list(directions.keys())
@@ -197,19 +226,40 @@ def walk(grid, verbose=False, start=(0,0), goal=None, start_risk=40):
         return min(outcomes.keys()) if outcomes.keys() else None
             
     
-    while True:
-        print()
-        print()
-        print('trying with acceptable risk', acceptable_risk)
-        res = step((0,0), list(), 0)
-        if res:
-            print('solution with risk', res)
-            return res
-        acceptable_risk[0] += 5
-
+    for ub in range(1):
+        while True:
+            print()
+            print()
+            print('trying with acceptable risk', acceptable_risk)
+            res = step((0,0), list(), 0)
+            if res:
+                print('solution with risk', res)
+                return res
+            if ub == 0:
+                acceptable_risk[0] *= 2
+        banned = []
 
 sample_r = walk(sample_grid)
 assert sample_r == 40
 
-real_r = walk(parse(real), False, start_risk=1000)
+real_r = walk(parse(real), False, start_risk=4102, 
+  banned = [
+      (0, 5), (1,5), (2,5), (0,6), (0,7), (1,6), (1,7), (4,4), (5,7),
+      (15, 5), (16, 5), (17, 5), (18, 5), (19, 5),
+      (49, 7),
+      (38, 12), (39, 12), (40, 12),
+      (19, 16), (20, 16), (21, 16),
+      (78, 38), (79, 38), (80, 38), (81, 38),
+      (75, 6), (76, 6), (77, 6), (78, 6), (79, 6), (80, 6),
+      (78, 42), (79, 42),
+      (96, 49), (97, 44),
+      (99, 50), (98, 50), (97, 50), (97, 49),
+      (99, 46), (99, 47), (98, 48), (99, 48), (98, 48),
+      (79, 39),
+      #(82, 97),
+      #(96, 43), (98, 46),
+       #(99, 41), (99, 42), (98, 42), (98, 43), (98, 44), (98, 45),
+       #(95, 41), (96, 41), (97, 41), (98, 41), (98, 40),
+       #(92, 49)
+      ])
 
