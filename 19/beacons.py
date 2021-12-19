@@ -1,4 +1,6 @@
 from pprint import pprint
+from collections import Counter
+from constraint import Problem, RecursiveBacktrackingSolver
 
 """
 I have no idea how to approach this!
@@ -160,4 +162,45 @@ def parse(text):
     return list(scanners.values())
 
 
+def align(scanners):
+    for s1 in scanners:
+        for s2 in scanners:
+            if s1 != s2:
+                p = Problem(RecursiveBacktrackingSolver())
+                count = 0
+                def find12(X,Y,Z, dx,dy,dz, orientation):
+                    count = 0
+                    for (x,y,z) in s2:
+                        match orientation:
+                            case 0:
+                                sx, sy, sz = x, y, z
+                            case 1:
+                                sy, sx, sz = x, y, z
+                            case 2:
+                                sz, sy, sx = x, y, z
+                            case 3:
+                                sy, sz, sx = x, y, z
+                        tx, ty, tz = dx*sx + X, dy*sy + Y, dz*sz + Z
+                        if (tx, ty, tz) in s1:
+                            count += 1
+                    if count > 0:
+                        print(count)
+                    return count >= 12
+                        
+                p.addVariable('X', range(-1000,1000))
+                p.addVariable('Y', range(-1000,1000))
+                p.addVariable('Z', range(-1000,1000))
+                p.addVariable('dx', [-1, 1])
+                p.addVariable('dy', [-1, 1])
+                p.addVariable('dz', [-1, 1])
+                p.addVariable('orientation', range(3))
+                p.addConstraint(find12)
+                sol = p.getSolution()
+                print(sol)
+                return # XXX
+
+
 pprint(parse(sample))
+
+
+align(parse(sample))
