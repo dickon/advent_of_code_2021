@@ -1020,7 +1020,6 @@ def align(scanners):
     while len(scanners)>1:
         print()
         print('there are', len(scanners), 'distinct scanners')
-        pprint(scanners)
         changes = False
         for i, s1 in list(enumerate(scanners)):
             for j, s2 in list(enumerate(scanners)):
@@ -1047,16 +1046,11 @@ def align(scanners):
                                 overlap = set (other).intersection(txp)
                                 #print('this', txp, 'other', other)
                                 #print(f'i={i} j={j} dx,dy,dz={dx},{dy},{dz} orientation={orientation} dim={dim} delta={delta} intersection={"*"*len(overlap)}')
-                                if len(overlap) > bestcount:
-                                    bestcount = len(overlap)
-                                    best[dim] = delta
-                                    #print(f'i={i} j={j} orientation={orientation} dim={dim} delta={delta} hits={len(overlap)}')
-
-                            if bestcount == 12:
-                                delta = best[dim]
-                                #print(f'i={i} j={j} orientation={orientation} dim={dim} delta={delta} hits={bestcount}')
-                                hit = True
-                                deltas[dim] = delta
+                                if len(overlap) == 12:
+                                    #print(f'i={i} j={j} orientation={orientation} dim={dim} delta={delta} hits={bestcount}')
+                                    hit = True
+                                    deltas[dim] = delta
+                                    break
                         # the above technique can match on 2 dimensions, but then we can compute the 3rd
                         if len(deltas) == 2:
                             print('found 2 deltas for' ,orientation, 'which are', deltas)
@@ -1083,20 +1077,18 @@ def align(scanners):
                             deltatuple = tuple([deltas[i] for i in range(3)])
                             print('solution', orientation, deltatuple)
                             good.append( (orientation, deltatuple))
-                            return True
-                        else:
-                            return False
-                            
-                    p.addVariable('orientation', range(len(orientations)))
-                    p.addConstraint(find12)
-                    sols = p.getSolution()
-                    if sols:
-                        print('match up', i, j, sols)
-                        orientation, deltas = good[0]
-                        print('match up', i, j, orientation, deltas)
+                            return (orientation, deltatuple)
+                    sol = None
+                    for o in range(len(orientations)):
+                        sol = find12(o)
+                        if sol:
+                            break
+                    if sol:
+                        orientation, deltas = sol
+                        print(f'match up scanner {i} to {j} in orientation {orientation} deltas {deltas}')
                         _, (rx,ry, rz, matrix) = orientations[orientation]
-                        print(rx,ry,rz)
-                        print(matrix)
+                        # print(rx,ry,rz)
+                        # print(matrix)
                         # we now know how to convert between scanner i and scanner j coordinate
                         intersections = 0
                         s2_coords_in_s1_space = []
@@ -1110,15 +1102,15 @@ def align(scanners):
                             if coords in s1:
                                 intersections += 1
                             s2_coords_in_s1_space.append( coords )
-                            print(pos, coords, '*' if coords in s1 else '')
-                        print('intersections', i,j, intersections)                
-                        assembled = set(scanners[i]).union( set(s2_coords_in_s1_space))
-                        print('assembled coordinate')
-                        pprint(assembled)
-                        scanners[i] = list(sorted(list(assembled)))
-                        del scanners[j]
-                        changes = True
-                        break
+                            #print(pos, coords, '*' if coords in s1 else '')
+                        #print('intersections', i,j, intersections)                
+                        #assembled = set(scanners[i]).union( set(s2_coords_in_s1_space))
+                        #print('assembled coordinate')
+                        #pprint(assembled)
+                        # scanners[i] = list(sorted(list(assembled)))
+                        # del scanners[j]
+                        # changes = True
+                        # break
                     else:
                         print('no solutions joining', i, 'and', j)
                 if changes:
@@ -1127,7 +1119,6 @@ def align(scanners):
                 break
         if not changes:
             break
-    pprint(scanners)
     print(len(scanners[0]))
 
 
