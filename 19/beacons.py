@@ -1,5 +1,9 @@
 from pprint import pprint
 from collections import Counter
+import numpy as np
+import math
+from scipy.spatial.transform import Rotation
+
 from constraint import Problem, RecursiveBacktrackingSolver
 
 """
@@ -154,53 +158,110 @@ def parse(text):
         if len(spl) == 4 and spl[0] == '---' and spl[-1] == '---':
             scanner = int(spl[2])
             scanners[scanner] = []
-            print(scanner)           
         else:
             cspl = line.split(',')
             if len(cspl) == 3:
                 scanners[scanner].append( tuple([int(x) for x in cspl]))
     return list(scanners.values())
 
+orientations_map = {}
+for rx in range(4):
+    rxr = Rotation.from_rotvec(rx*np.pi/2 * np.array([1,0,0]))
+    for ry in range(4):
+        ryr = Rotation.from_rotvec(ry*np.pi/2 * np.array([0,1,0]))
+        for rz in range(4):            
+            rzr = Rotation.from_rotvec(rz*np.pi/2 * np.array([0,0,1]))
+            r = rxr*ryr*rzr
+            faxis = [ r.apply(v) for v in [[1,0,0], [0,1,0], [0,0,1]] ]
+            axis = tuple([ tuple([round(v) for v in x]) for x in faxis])
+            m = r.as_matrix()
+            orientations_map.setdefault(axis,  (rx,ry,rz, m))
+
+assert len(orientations_map) == 24
+orientations = list(orientations_map.items())
 
 def align(scanners):
-    for s1 in scanners:
-        for s2 in scanners:
-            if s1 != s2:
+    for i, s1 in enumerate(scanners):
+        for j, s2 in enumerate(scanners):
+            if s2 > s1:
+                print('compare', i, j)
                 p = Problem(RecursiveBacktrackingSolver())
-                count = 0
-                def find12(X,Y,Z, dx,dy,dz, orientation):
-                    count = 0
-                    for (x,y,z) in s2:
-                        match orientation:
-                            case 0:
-                                sx, sy, sz = x, y, z
-                            case 1:
-                                sy, sx, sz = x, y, z
-                            case 2:
-                                sz, sy, sx = x, y, z
-                            case 3:
-                                sy, sz, sx = x, y, z
-                        tx, ty, tz = dx*sx + X, dy*sy + Y, dz*sz + Z
-                        if (tx, ty, tz) in s1:
-                            count += 1
-                    if count > 0:
-                        print(count)
-                    return count >= 12
+                good = []
+                def find12(orientation):
+                    rots, (rx,ry,rz, matrix) = orientations[orientation]
+                    hitall = True
+                    deltas = {}
+                    best = {}
+                    for dim in range(3):
+                        matches = []
+                        hit = False
+                        bestcount = 0
+                        for delta in range(-1000, 1000):
+                            txp = set()
+                            for pos in s2:                                
+                                v = round(pos[0]*matrix[dim][0] + pos[1]*matrix[dim][1] + pos[2]*matrix[dim][2])
+                                proj = v + delta
+                                txp.add(proj)
+                            other =  [v[dim] for v in s1]            
+                            overlap = set (other).intersection(txp)
+                            #print('this', txp, 'other', other)
+                            #print(f'i={i} j={j} dx,dy,dz={dx},{dy},{dz} orientation={orientation} dim={dim} delta={delta} intersection={"*"*len(overlap)}')
+                            if len(overlap) > bestcount:
+                                bestcount = len(overlap)
+                                best[dim] = delta
+                                #print(f'i={i} j={j} orientation={orientation} dim={dim} delta={delta} hits={len(overlap)}')
+
+                            if len(overlap)>= 12:
+                                print(f'i={i} j={j} orientation={orientation} dim={dim} delta={delta} hits={len(overlap)}')
+                                hit = True
+                                deltas[dim] = delta
+                    # the above technique can match on 2 dimensions, but then we can compute the 3rd
+                    if len(deltas) == 2:
+                        print('found deltas for' ,orientation, 'are', deltas)
+                        for pos in s2:
+                            coords = (
+                                round(pos[0]*matrix[0][0] + pos[1]*matrix[1][0] + pos[2]*matrix[2][0]) + deltas.get(0, 0),
+                                round(pos[0]*matrix[0][1] + pos[1]*matrix[1][1] + pos[2]*matrix[2][1]) + deltas.get(1, 0),
+                                round(pos[0]*matrix[0][2] + pos[1]*matrix[1][2] + pos[2]*matrix[2][2]) + deltas.get(2, 0)
+                            )
+                            for apos in s1:
+                                match = (apos[0] == coords[0] if 0 in deltas else True) and  (apos[1] == coords[1] if 1 in deltas else True) and (apos[2] == coords[2] if 1 in deltas else True)
+                                if match:
+                                    missing_delta = None
+                                    
+                                    for k in range(3):
+                                        if k not in deltas:
+                                            deltas[k] =  apos[k] - coords[k]
+                                            print('worked out delta', k, 'is', deltas[k])
+                    if len(deltas) == 3:
+                        print('solution', orientation, deltas)
+                        good.append( (orientation, deltas))
+                        return True
+                    else:
+                        return False
                         
-                p.addVariable('X', range(-1000,1000))
-                p.addVariable('Y', range(-1000,1000))
-                p.addVariable('Z', range(-1000,1000))
-                p.addVariable('dx', [-1, 1])
-                p.addVariable('dy', [-1, 1])
-                p.addVariable('dz', [-1, 1])
-                p.addVariable('orientation', range(3))
+                p.addVariable('orientation', range(len(orientations)))
                 p.addConstraint(find12)
-                sol = p.getSolution()
-                print(sol)
-                return # XXX
+                sols = p.getSolutions()
+                if sols:
+                    print('match up', i, j, sols)
+                    orientation, deltas = good[0]
+                    _, (rx,ry, rz, matrix) = orientations[orientation]
+                    print(rx,ry,rz)
+                    print(matrix)
+                    # we now know how to convert between scanner i and scanner j coordinate
+                    intersections = 0
+                    for pos in s2:
+                        coords = (
+                            round(pos[0]*matrix[0][0] + pos[1]*matrix[1][0] + pos[2]*matrix[2][0]) + deltas[0],
+                            round(pos[0]*matrix[0][1] + pos[1]*matrix[1][1] + pos[2]*matrix[2][1]) + deltas[1],
+                            round(pos[0]*matrix[0][2] + pos[1]*matrix[1][2] + pos[2]*matrix[2][2]) + deltas[2]
+                        )
+                        if coords in s1:
+                            intersections += 1
+                        print(pos, coords, '*' if coords in s1 else '')
+                    print('intersections', i,j, intersections)                
 
-
-pprint(parse(sample))
 
 
 align(parse(sample))
