@@ -217,25 +217,32 @@ def align(scanners):
                                 deltas[dim] = delta
                     # the above technique can match on 2 dimensions, but then we can compute the 3rd
                     if len(deltas) == 2:
-                        print('found deltas for' ,orientation, 'are', deltas)
+                        print('found 2 deltas for' ,orientation, 'which are', deltas)
                         for pos in s2:
                             coords = (
                                 round(pos[0]*matrix[0][0] + pos[1]*matrix[1][0] + pos[2]*matrix[2][0]) + deltas.get(0, 0),
                                 round(pos[0]*matrix[0][1] + pos[1]*matrix[1][1] + pos[2]*matrix[2][1]) + deltas.get(1, 0),
                                 round(pos[0]*matrix[0][2] + pos[1]*matrix[1][2] + pos[2]*matrix[2][2]) + deltas.get(2, 0)
                             )
+                            missing_delta = None
+                            missing_delta_v = None
                             for apos in s1:
                                 match = (apos[0] == coords[0] if 0 in deltas else True) and  (apos[1] == coords[1] if 1 in deltas else True) and (apos[2] == coords[2] if 1 in deltas else True)
                                 if match:
-                                    missing_delta = None
-                                    
                                     for k in range(3):
                                         if k not in deltas:
-                                            deltas[k] =  apos[k] - coords[k]
-                                            print('worked out delta', k, 'is', deltas[k])
+                                            d = apos[k] - coords[k]
+                                            print('worked out delta', k, 'is', v)
+                                            assert missing_delta_v is None or missing_delta_v == v
+                                            missing_delta_v = d                                            
+                                            missing_delta = k
+                        if missing_delta:
+                            deltas[missing_delta] = missing_delta_v
                     if len(deltas) == 3:
-                        print('solution', orientation, deltas)
-                        good.append( (orientation, deltas))
+                        print('solution deltas', deltas)
+                        deltatuple = tuple([deltas[i] for i in range(3)])
+                        print('solution', orientation, deltatuple)
+                        good.append( (orientation, deltatuple))
                         return True
                     else:
                         return False
