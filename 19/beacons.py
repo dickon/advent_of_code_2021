@@ -1073,6 +1073,23 @@ def align(scanners, verbose=False):
             print(pos, coords, '*' if coords in scanners[i] else '')
         print('intersections', i,j, intersections)                
         return s2_coords_in_s1_space
+    def transitive_closure():
+        while True:
+            work = False
+            for i1 in range(len(scanners)):
+                for i2 in range(len(scanners)):
+                    if i1!=i2 and (i1,i2) not in transformations:
+                        for i3 in range(len(scanners)):
+                            if (i1, i3) in transformations and (i3, i2) in transformations:
+                                print(f'we want to calc {i1}->{i2} using {i1}->{i3} and {i3}->{i2}')
+                                m13 = transformations[ (i1, i3) ]
+                                m32 = transformations[ (i3, i2) ]
+                                m12 = np.matmul(m13, m32)
+                                transformations[(i1, i2)] = m12
+                                work = True
+            if not work:
+                break
+
     if False:
         array = np.array
         transformations = {(0, 1): array([[   -1,     0,     0,    68],
@@ -1144,9 +1161,9 @@ def align(scanners, verbose=False):
                                 #     alpha = M*pos
                                 #  where M is the rotation matrix with a translation delta added at [0,3], [1,3], [2,3]
                                 #  Expanding the cross product that gives us:
-                                # alpha[0] =  m[0, 0]*beta[0] + m[0,1]*beta[1] + m[0,2]*beta[2] + T[0]*1
+                                # alpha[0] =  m[0, 0]*pos[0] + m[0,1]*pos[1] + m[0,2]*pos[2] + T[0]*1
                                 #   rearranging:
-                                #    T[0] = alpha[0] -m[0, 0]*beta[0] + m[0,1]*beta[1] + m[0,2]*beta[2]
+                                #    T[0] = alpha[0] -m[0, 0]*pos[0] + m[0,1]*pos[1] + m[0,2]*pos[2]
                                 delta0 = alpha[0] - (m[0,0]*pos[0] + m[0,1]*pos[1] + m[0,2]*pos[2])
                                 delta1 = alpha[1] - (m[1,0]*pos[0] + m[1,1]*pos[1] + m[1,2]*pos[2])
                                 delta2 = alpha[2] - (m[2,0]*pos[0] + m[2,1]*pos[1] + m[2,2]*pos[2])
@@ -1195,24 +1212,9 @@ def align(scanners, verbose=False):
                     if not found:
                         failed.add( (i,j))
                         failed.add( (j,i))
-    while True:
-        pprint(transformations)
-        work = False
-        for i in range(1,len(scanners)):
-            if (0,i) not in transformations:
-                for j in range(len(scanners)):
-                    if (0, j) in transformations and (j, i) in transformations:
-                        print(f'we want to calc 0->{i} using 0->{j} and {j}->{i}')
-                        # We want to work out 0 -> i, and we know 0 -> j and j -> i
-                        m0j = transformations[ (0,j) ]
-                        mji = transformations[ (j,i) ]
-                        m = np.matmul(m0j, mji)
-                        print(m)
-                        transformations[(0,i)] = m
-                        work = True
-        if not work:
-            break
+        transitive_closure()
     pprint(transformations)
+    transitive_closure()
     # assert transformations[(0,1)][1] == (68, -1246, -43)
     # assert repr(transformations[(0,4)][1]) == 'array([  -20., -1133.,  1061.])'
     # assert repr(transformations[(0,3)][1]) == 'array([  -92., -2380.,   -20.])'
@@ -1221,6 +1223,7 @@ def align(scanners, verbose=False):
     for pos in scanners[0]:
         locs[tuple(pos)]= list([0])
     for i in range(1, len(scanners)):
+        print(i, 'of',len(scanners))
         for pos in scanners[i]:
             post = np.matmul(transformations[(0,i)], pos.transpose()).transpose()
 
@@ -1228,8 +1231,10 @@ def align(scanners, verbose=False):
             locs[tuple(post)].append(i)
     pprint(locs)
     print(len(locs))
+    return len(locs)
 
 
-
-#align(parse(sample))
+rsample = align(parse(sample))
+#assert rsample == 79
 align(parse(real))
+
