@@ -1000,126 +1000,224 @@ def parse(text):
                 scanners[scanner].append( tuple([int(x) for x in cspl]))
     return list(scanners.values())
 
-orientations_map = {}
-for rx in range(4):
+def make_rotation(rx, ry, rz):
     rxr = Rotation.from_rotvec(rx*np.pi/2 * np.array([1,0,0]))
+    ryr = Rotation.from_rotvec(ry*np.pi/2 * np.array([0,1,0]))
+    rzr = Rotation.from_rotvec(rz*np.pi/2 * np.array([0,0,1]))
+    r = rxr*ryr*rzr
+    faxis = [ r.apply(v) for v in [[1,0,0], [0,1,0], [0,0,1]] ]
+    axis = tuple([ tuple([round(v) for v in x]) for x in faxis])
+    m =  np.matrix([
+        [ axis[0][0], axis[0][1], axis[0][2], 0],
+        [ axis[1][0], axis[1][1], axis[1][2], 0],
+        [ axis[2][0], axis[2][1], axis[2][2], 0],
+        [ 0, 0, 0, 1]
+    ])
+    #print(f'rotate {rx} {ry} {rz} =\n{m}')
+    return m
+
+assert (make_rotation(0,0,0) == np.matrix('1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1')).all()
+assert (make_rotation(4,4,4) == np.matrix('1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1')).all()
+assert (make_rotation(1,0,0) == np.matrix('1 0 0 0; 0 0 1 0; 0 -1 0 0; 0 0 0 1')).all()
+
+
+orientations_map = {}
+orientations_convert = {}
+for rx in range(4):
     for ry in range(4):
-        ryr = Rotation.from_rotvec(ry*np.pi/2 * np.array([0,1,0]))
         for rz in range(4):            
-            rzr = Rotation.from_rotvec(rz*np.pi/2 * np.array([0,0,1]))
-            r = rxr*ryr*rzr
-            faxis = [ r.apply(v) for v in [[1,0,0], [0,1,0], [0,0,1]] ]
-            axis = tuple([ tuple([round(v) for v in x]) for x in faxis])
-            m = r.as_matrix()
-            orientations_map.setdefault(axis,  (rx,ry,rz, m))
+            m  = make_rotation(rx,ry,rz)            
+            orientations_map.setdefault(repr(m),  m)
 
 assert len(orientations_map) == 24
-orientations = list(orientations_map.items())
+#pprint(orientations_map)
+orientations = list(orientations_map.values())
 
-def align(scanners):
-    while len(scanners)>1:
+def homogenous(x):
+    return tuple(list(x)+[1])
+
+def homogenous_y(x):
+    return np.matrix([ 
+        [x[0]],
+        [x[1]],
+        [x[2]],
+        [1]
+    ])
+
+def align(scanners, verbose=False):
+    vectors = {}
+    def dump(i, j):
+        orientation, deltas = vectors[(i,j)]
+        _, (rx,ry, rz, matrix, r) = orientations[orientation]
+        # print(rx,ry,rz)
+        # print(matrix)
+        # we now know how to convert between scanner i and scanner j coordinate
+        intersections = 0
+        s2_coords_in_s1_space = []
+
+        for pos in scanners[j]:
+            coords = (
+                round(pos[0]*matrix[0][0] + pos[1]*matrix[1][0] + pos[2]*matrix[2][0]+ deltas[0]),
+                round(pos[0]*matrix[0][1] + pos[1]*matrix[1][1] + pos[2]*matrix[2][1] + deltas[1]),
+                round(pos[0]*matrix[0][2] + pos[1]*matrix[1][2] + pos[2]*matrix[2][2] + deltas[2])
+            )
+            if coords in scanners[i]:
+                intersections += 1
+            s2_coords_in_s1_space.append( coords )
+            print(pos, coords, '*' if coords in scanners[i] else '')
+        print('intersections', i,j, intersections)                
+        return s2_coords_in_s1_space
+    if False:
+        vectors = {(0, 1): (8, (68, -1246, -43)),
+ (1, 0): (8, (68, 1246, -43)),
+ (1, 3): (0, (160, -1134, -23)),
+ (1, 4): (19, (88, 113, -1104)),
+ (2, 4): (9, (1125, -168, 72)),
+ (3, 1): (0, (-160, 1134, 23)),
+ (4, 1): (13, (-1104, -88, 113)),
+ (4, 2): (9, (168, -1125, 72))}
+    else:
         print()
         print('there are', len(scanners), 'distinct scanners')
         changes = False
+
         for i, s1 in list(enumerate(scanners)):
             for j, s2 in list(enumerate(scanners)):
-                if j > i:
+                if j != i:
+                    if (i,j) != (1,4): continue
                     print('compare', i, j)
-                    p = Problem(RecursiveBacktrackingSolver())
-                    good = []
-                    def find12(orientation):
-                        rots, (rx,ry,rz, matrix) = orientations[orientation]
-                        hitall = True
-                        deltas = {}
-                        best = {}
-                        for dim in range(3):
-                            matches = []
-                            hit = False
-                            bestcount = 0
-                            for delta in range(-4000, 4000):
-                                txp = set()
-                                for pos in s2:                                
-                                    v = round(pos[0]*matrix[dim][0] + pos[1]*matrix[dim][1] + pos[2]*matrix[dim][2])
-                                    proj = v + delta
-                                    txp.add(proj)
-                                other =  [v[dim] for v in s1]            
-                                overlap = set (other).intersection(txp)
-                                #print('this', txp, 'other', other)
-                                #print(f'i={i} j={j} dx,dy,dz={dx},{dy},{dz} orientation={orientation} dim={dim} delta={delta} intersection={"*"*len(overlap)}')
-                                if len(overlap) == 12:
-                                    #print(f'i={i} j={j} orientation={orientation} dim={dim} delta={delta} hits={bestcount}')
-                                    hit = True
-                                    deltas[dim] = delta
-                                    break
-                        # the above technique can match on 2 dimensions, but then we can compute the 3rd
-                        if len(deltas) == 2:
-                            print('found 2 deltas for' ,orientation, 'which are', deltas)
-                            missing_delta = None
-                            missing_delta_vs = set()
-                            for pos in s2:
-                                coords = (
-                                    round(pos[0]*matrix[0][0] + pos[1]*matrix[1][0] + pos[2]*matrix[2][0]) + deltas.get(0, 0),
-                                    round(pos[0]*matrix[0][1] + pos[1]*matrix[1][1] + pos[2]*matrix[2][1]) + deltas.get(1, 0),
-                                    round(pos[0]*matrix[0][2] + pos[1]*matrix[1][2] + pos[2]*matrix[2][2]) + deltas.get(2, 0)
-                                )
-                                for apos in s1:
-                                    match = (apos[0] == coords[0] if 0 in deltas else True) and  (apos[1] == coords[1] if 1 in deltas else True) and (apos[2] == coords[2] if 2 in deltas else True)
-                                    if match:
-                                        for k in range(3):
-                                            if k not in deltas:
-                                                d = apos[k] - coords[k]
-                                                print('worked out delta', k, 'could be', d)
-                                                missing_delta_vs.add(d)
-                                                missing_delta = k
-                            if missing_delta is not None:
-                                deltas[missing_delta] = list(missing_delta_vs)[0]
-                        if len(deltas) == 3:
-                            deltatuple = tuple([deltas[i] for i in range(3)])
-                            print('solution', orientation, deltatuple)
-                            good.append( (orientation, deltatuple))
-                            return (orientation, deltatuple)
-                    sol = None
+                    pprint(vectors)
                     for o in range(len(orientations)):
-                        sol = find12(o)
-                        if sol:
-                            break
-                    if sol:
-                        orientation, deltas = sol
-                        print(f'match up scanner {i} to {j} in orientation {orientation} deltas {deltas}')
-                        _, (rx,ry, rz, matrix) = orientations[orientation]
-                        # print(rx,ry,rz)
-                        # print(matrix)
-                        # we now know how to convert between scanner i and scanner j coordinate
-                        intersections = 0
-                        s2_coords_in_s1_space = []
+                        #if o != 8: continue
+                        if verbose: 
+                            print('trying orientation', o)
+                        m = orientations[o]
+                        #print(orientations[o])
+                        deltas = []
+                        for dim in range(3):
+                            alphas = [x[dim] for x in s1]
+                            #print(f'orientation {o} dim {dim}  alphas={alphas}')
+                            found = False
+                            for s1i in range(len(s1)):
+                                alpha = homogenous_y(s1[s1i])
+                                for s2i, pos in enumerate(s2):                                
 
-                        for pos in s2:
-                            coords = (
-                                round(pos[0]*matrix[0][0] + pos[1]*matrix[1][0] + pos[2]*matrix[2][0]) + deltas[0],
-                                round(pos[0]*matrix[0][1] + pos[1]*matrix[1][1] + pos[2]*matrix[2][1]) + deltas[1],
-                                round(pos[0]*matrix[0][2] + pos[1]*matrix[1][2] + pos[2]*matrix[2][2]) + deltas[2]
-                            )
-                            if coords in s1:
-                                intersections += 1
-                            s2_coords_in_s1_space.append( coords )
-                            #print(pos, coords, '*' if coords in s1 else '')
-                        #print('intersections', i,j, intersections)                
-                        #assembled = set(scanners[i]).union( set(s2_coords_in_s1_space))
-                        #print('assembled coordinate')
-                        #pprint(assembled)
-                        # scanners[i] = list(sorted(list(assembled)))
-                        # del scanners[j]
-                        # changes = True
-                        # break
-                    else:
-                        print('no solutions joining', i, 'and', j)
-                if changes:
-                    break
-            if changes:
-                break
-        if not changes:
+                                    beta_in_s2_coords = homogenous_y(pos)
+                                    if verbose:
+                                        print(f"let us try to align {s1i}:{alpha} with {s2i}:{beta_in_s2_coords} on orientation {o} and check dimension {dim} ")
+                                    #print(f"alpha in s1 coords={alpha} beta in s2 coords={beta_in_s2_coords}")
+                                    beta = m * beta_in_s2_coords
+                                    if verbose:
+                                        print(f"beta in s1 coords={beta}")
+                                    delta_candidate_vec = alpha - beta
+                                    if verbose:
+                                        print(f"delta candidate vector={delta_candidate_vec}")
+                                    delta_candidate= delta_candidate_vec[dim, 0]
+                                    if verbose:
+                                        print(f'dim {dim} gives us delta {delta_candidate}')
+                                    mtrans = np.matrix([
+                                        [1,0,0,delta_candidate if dim == 0 else 0],
+                                        [0,1,0,delta_candidate if dim == 1 else 0],
+                                        [0,0,1,delta_candidate if dim == 2 else 0],
+                                        [0,0,0,1]
+                                    ])
+                                    mt = m * mtrans
+                                    if verbose:
+                                        print(f'candidate matrix=\n{mt}')
+                                    s2_in_candidate_s1_space = [ mt * homogenous_y(x) for x in s2]
+                                    #print(f's2 in candidate transformed space={s2_in_candidate_s1_space}')
+                                    betas = [x[dim,0] for x in s2_in_candidate_s1_space]
+                                    #print(f'betas={betas}')
+                                    matches = [x for x in alphas if x in betas]
+                                    if verbose:
+                                        print(f"orientation {o} dim {dim} aligning {s1i}:{alpha} to {s2i}:{beta_in_s2_coords}:{beta} delta candidate {delta_candidate} mathces {matches}")
+
+                                    if len(matches) >= 12:
+                                        print(f'match up in orientation {o} looking at dimension {dim} stating from s1 index {s1i} delta is {delta_candidate} hits {len(matches)}')
+                                        found = True
+                                        deltas.append(delta_candidate)
+                                        break
+                                if found:
+                                    break
+                        print(f'considering orientation {o} found deltas {deltas}')
+                        if len(deltas) == 3:
+                            print(f'solution orientation={o} deltas={deltas}')
+                            mtrans = np.matrix([
+                                [1,0,0, deltas[0]],
+                                [0,1,0, deltas[1]],
+                                [0,0,1, deltas[2]],
+                                [0,0,0, 1]
+                            ])
+                            mt = m * mtrans
+                            print(mt)
+                            vectors[(i,j)] = mt
+                            break
+                                                    
+                        #     return orientation, tuple(deltas)
+
+                        # orientation, deltas = sol
+                        # print(f'match up scanner {i} to {j} in orientation {orientation} deltas {deltas}')
+                        # vectors[(i,j)] = orientation, deltas
+                        # dump(i,j)
+                    # else:
+                    #     print('no solutions joining', i, 'and', j)
+    while True:
+        pprint(vectors)
+        work = False
+        for i in range(1,len(scanners)):
+            if (0,i) not in vectors:
+                for j in range(len(scanners)):
+                    if (0, j) in vectors and (j, i) in vectors:
+                        print(f'we want to calc 0->{i} using 0->{j} and {j}->{i}')
+                        # We want to work out 0 -> i, and we know 0 -> j and j -> i
+                        bo, bd = vectors[ (0,j) ]
+                        co, cd = vectors[ (j,i) ]
+                        brot = orientations[bo][1][:3]
+                        crot = orientations[co][1][:3]
+                        print(f'bo={bo} {brot} bd={bd}')
+                        print(f'co={co} {crot} cd={cd}')
+                        rots, (rx,ry,rz, matrix, r) = orientations[bo]
+                        rb = orientations[bo][1][4]
+                        rc = orientations[co][1][4]
+                        cdp = rb.apply(cd)
+                        
+                        bdp = rc.inv().apply(bd)
+                        print(f"{j}->{i} delta is {cd} projeted in orientation {bo} is {cdp} added {cdp+bd}")
+                        dump(j,i)
+                        _, naxis = make_rotation( crot[0]-brot[0], crot[1]-brot[0], crot[2]-brot[0])
+                        no = orientations_convert[naxis]
+                        print(cdp + bd)
+                        vectors[ (0, i)] = (bo, cdp+bd)
+                        work = True
+                    # elif (0, j) in vectors and (i, j) in vectors:
+                    #     print(f'we want to calc 0->{i} using 0->{j} and {i}->{j} backwards')
+                    #     # We want to work out 0 -> i, and we know 0 -> j and j -> i
+                    #     bo, bd = vectors[ (0,j) ]
+                    #     co, cd = vectors[ (i,j) ]
+                    #     rots, (rx,ry,rz, matrix, r) = orientations[bo]
+                    #     rbackwards = make_rotation(rx+2, ry+2, rz+2)
+                    #     print(cd)
+                    #     cdp = r.apply(cd)
+                    #     print(f"{j} -> {i} delta is {cd} projeted backwards in orientation {bo} is {cdp}")
+                    #     print(cdp + bd)
+                    #     vectors[ (0, i)] = (bo, cdp+bd)
+                    #     work = True
+        if not work:
             break
-    print(len(scanners[0]))
+    assert vectors[(0,1)][1] == (68, -1246, -43)
+    pprint(vectors)
+    assert repr(vectors[(0,4)][1]) == 'array([  -20., -1133.,  1061.])'
+    assert repr(vectors[(0,3)][1]) == 'array([  -92., -2380.,   -20.])'
+    #assert repr(vectors[(0,2)][1]) == 'array([ 1105., -1205., 1229.])'
+    locs = {}
+    for pos in scanners[0]:
+        locs[pos]= list([0])
+    for i in range(1, len(scanners)):
+        for pos in dump(0, i):
+            locs.setdefault(pos, list())
+            locs[pos].append(i)
+    print(len(locs))
+    pprint(locs)
 
 
 
