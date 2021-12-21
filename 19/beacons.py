@@ -2,6 +2,7 @@ from pprint import pprint
 from collections import Counter
 import numpy as np
 import math
+import os.path
 from scipy.spatial.transform import Rotation
 
 from constraint import Problem, RecursiveBacktrackingSolver
@@ -1050,8 +1051,21 @@ def homorepr(x):
     assert x[0,3] == 1
     return f'({x[0]}, {x[1]}, {x[2]})'
 
-def align(scanners, verbose=False):
+def align(scanners, label, verbose=False):
     transformations = {}
+    def record():
+        with open(f'{label}.dat', 'w') as o:
+            pprint(transformations, o)
+        maxd = 0
+        for i in range(len(scanners)):
+            for j in range(len(scanners)):
+                if i != j and (0,i) in transformations and (0, j) in transformations:
+                    ti = transformations[0,i]
+                    tj = transformations[0,j]
+                    distance = abs(ti[0,3]-tj[0,3]) + abs(ti[1,3]-tj[1,3]) + abs(ti[2,3]-tj[2,3])
+                    print(i,j,distance)
+                    maxd = max(distance, maxd)
+        print(label,'max distance', maxd)
     def dump(i, j):
         orientation, deltas = transformations[(i,j)]
         _, (rx,ry, rz, matrix, r) = orientations[orientation]
@@ -1090,41 +1104,44 @@ def align(scanners, verbose=False):
             if not work:
                 break
 
-    if False:
-        array = np.array
-        transformations = {(0, 1): array([[   -1,     0,     0,    68],
-       [    0,     1,     0, -1246],
-       [    0,     0,    -1,   -43],
-       [    0,     0,     0,     1]]),
- (1, 0): array([[  -1,    0,    0,   68],
-       [   0,    1,    0, 1246],
-       [   0,    0,   -1,  -43],
-       [   0,    0,    0,    1]]),
- (1, 3): array([[    1,     0,     0,   160],
-       [    0,     1,     0, -1134],
-       [    0,     0,     1,   -23],
-       [    0,     0,     0,     1]]),
- (1, 4): array([[    0,     1,     0,    88],
-       [    0,     0,    -1,   113],
-       [   -1,     0,     0, -1104],
-       [    0,     0,     0,     1]]),
- (2, 4): array([[   0,    1,    0, 1125],
-       [   1,    0,    0, -168],
-       [   0,    0,   -1,   72],
-       [   0,    0,    0,    1]]),
- (3, 1): array([[   1,    0,    0, -160],
-       [   0,    1,    0, 1134],
-       [   0,    0,    1,   23],
-       [   0,    0,    0,    1]]),
- (4, 1): array([[    0,     0,    -1, -1104],
-       [    1,     0,     0,   -88],
-       [    0,    -1,     0,   113],
-       [    0,     0,     0,     1]]),
- (4, 2): array([[    0,     1,     0,   168],
-       [    1,     0,     0, -1125],
-       [    0,     0,    -1,    72],
-       [    0,     0,     0,     1]])}
-    else:
+    if os.path.isfile(f'{label}.dat'):
+        with open(f'{label}.dat', 'r') as o:
+            array = np.array
+            transformations = eval(o.read())
+#         array = np.array
+#         transformations = {(0, 1): array([[   -1,     0,     0,    68],
+#        [    0,     1,     0, -1246],
+#        [    0,     0,    -1,   -43],
+#        [    0,     0,     0,     1]]),
+#  (1, 0): array([[  -1,    0,    0,   68],
+#        [   0,    1,    0, 1246],
+#        [   0,    0,   -1,  -43],
+#        [   0,    0,    0,    1]]),
+#  (1, 3): array([[    1,     0,     0,   160],
+#        [    0,     1,     0, -1134],
+#        [    0,     0,     1,   -23],
+#        [    0,     0,     0,     1]]),
+#  (1, 4): array([[    0,     1,     0,    88],
+#        [    0,     0,    -1,   113],
+#        [   -1,     0,     0, -1104],
+#        [    0,     0,     0,     1]]),
+#  (2, 4): array([[   0,    1,    0, 1125],
+#        [   1,    0,    0, -168],
+#        [   0,    0,   -1,   72],
+#        [   0,    0,    0,    1]]),
+#  (3, 1): array([[   1,    0,    0, -160],
+#        [   0,    1,    0, 1134],
+#        [   0,    0,    1,   23],
+#        [   0,    0,    0,    1]]),
+#  (4, 1): array([[    0,     0,    -1, -1104],
+#        [    1,     0,     0,   -88],
+#        [    0,    -1,     0,   113],
+#        [    0,     0,     0,     1]]),
+#  (4, 2): array([[    0,     1,     0,   168],
+#        [    1,     0,     0, -1125],
+#        [    0,     0,    -1,    72],
+#        [    0,     0,     0,     1]])}
+    if True:
         print()
         print('there are', len(scanners), 'distinct scanners')
         changes = False
@@ -1152,11 +1169,7 @@ def align(scanners, verbose=False):
                             assert alpha[3] == 1
                             for s2i, pos in enumerate(s2):    
                                 if verbose:
-                                    print(f"let us try to align {s1i}:{alpha}(in s1 space) with {s2i}:{pos} on orientation {o}")                                
-                                beta = np.matmul(m,  pos.transpose())
-                                if verbose:
-                                    print(f's2 pos rotated s1 space (beta)={beta}')
-                                assert beta.shape == (4,)
+                                    print(f"let us try to align {s1i}:{alpha}(in s1 space) with {s2i}:{pos}(in s2 space) on orientation {o}")                                
                                 # we want to find the transformation M such that:
                                 #     alpha = M*pos
                                 #  where M is the rotation matrix with a translation delta added at [0,3], [1,3], [2,3]
@@ -1177,14 +1190,10 @@ def align(scanners, verbose=False):
                                 mtrans = mtrans.astype(int)
                                 if verbose:
                                     print(f'translation matrix:\n{mtrans}')
-                                alpha2 = np.matmul(mtrans, homogenous_y(pos)).transpose()
-                                if verbose:
-                                    print(f'alpha={alpha} beta moved to alpha by translation matrix={alpha2}')
-                                assert (alpha == alpha2).all()
 
                                 # the [0] next line is to convert the 1x4 matrix to a 4 vector
                                 s2_in_candidate_s1_space = [np.matmul(mtrans, homogenous_y(x)).transpose()[0] for x in s2]
-                                #assert s2_in_candidate_s1_space[0].shape == (4,)
+                                assert s2_in_candidate_s1_space[0].shape == (4,)
                                 if verbose and True:
                                     print(f's2 in candidate s1 space={s2_in_candidate_s1_space}')
                                 matches = 0
@@ -1203,6 +1212,7 @@ def align(scanners, verbose=False):
                                     print(mtrans)
                                     transformations[(i,j)]= mtrans
                                     transformations[(j,i)]= np.linalg.inv(mtrans).astype(int)
+                                    record()
                                     found = True
                                     break
                             if found: 
@@ -1213,8 +1223,8 @@ def align(scanners, verbose=False):
                         failed.add( (i,j))
                         failed.add( (j,i))
         transitive_closure()
-    pprint(transformations)
     transitive_closure()
+    record()
     # assert transformations[(0,1)][1] == (68, -1246, -43)
     # assert repr(transformations[(0,4)][1]) == 'array([  -20., -1133.,  1061.])'
     # assert repr(transformations[(0,3)][1]) == 'array([  -92., -2380.,   -20.])'
@@ -1229,12 +1239,12 @@ def align(scanners, verbose=False):
 
             locs.setdefault(tuple(post), list())
             locs[tuple(post)].append(i)
-    pprint(locs)
+    #pprint(locs)
     print(len(locs))
     return len(locs)
 
 
-rsample = align(parse(sample))
+rsample = align(parse(sample), 'sample')
 #assert rsample == 79
-align(parse(real))
+align(parse(real), 'real')
 
