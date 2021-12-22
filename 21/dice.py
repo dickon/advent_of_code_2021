@@ -43,34 +43,33 @@ def start2(start=(4,8), goal=1000, verbose=False):
         p = round % 2
         wins = [0, 0]
         
-        for throws in range(3):
-            for r1 in range(1,4):
-                for r2 in range(1,4):                
-                    for r3 in range(1,4):
-                        pos_t2 = replace(pos_t, p, (pos_t[p] + (r1+r2+r3))%10 )
-                        score_t2 = replace(score_t, p, score_t[p]+pos_t2[p]+1)
+        for r1 in range(1,4):
+            for r2 in range(1,4):                
+                for r3 in range(1,4):
+                    pos_t2 = replace(pos_t, p, (pos_t[p] + (r1+r2+r3))%10 )
+                    score_t2 = replace(score_t, p, score_t[p]+pos_t2[p]+1)
+                    if verbose:
+                        print('after round',round, 'of player', p,'from scores', score_t, 'rolling',r1,r2,r3,'scores', score_t2, 'pos', pos_t2)
+                    if score_t2[p] >= goal:
                         if verbose:
-                            print('after round',round, 'of player', p,'from scores', score_t, 'rolling',r1,r2,r3,'scores', score_t2, 'pos', pos_t2)
-                        if score_t2[p] >= goal:
-                            if verbose:
-                                print('player', p, 'wins!')
-                            wins[p] += 1
-                        else:
-                            assert score_t2[0] < goal
-                            assert score_t2[1] < goal
-                            if verbose:
-                                print('recursing with', score_t2, pos_t2,'to run round', round+1)
-                            nwins = run2(score_t2, pos_t2, round+1)
-                            wins[0] += nwins[0]
-                            wins[1] += nwins[1]
+                            print('player', p, 'wins!')
+                        wins[p] += 1
+                    else:
+                        assert score_t2[0] < goal
+                        assert score_t2[1] < goal
+                        if verbose:
+                            print('recursing with', score_t2, pos_t2,'to run round', round+1)
+                        nwins = run2(score_t2, pos_t2, round+1)
+                        wins[0] += nwins[0]
+                        wins[1] += nwins[1]
         if round == 0 or verbose:
             print('results after round',round,'is', wins )
         return wins
 
     return run2( (0,0), start,  0)
 
-assert start2(goal=3, verbose=True) == [9519, 3042]
-assert start2(start=(0,0), goal=3, verbose=True) == [81, 0]
+assert start2(goal=3, verbose=True) == [365, 338]
+assert start2(start=(0,0), goal=3, verbose=True) == [27, 0]
 print(start2())
 
             
