@@ -44,7 +44,6 @@ def start2(start=(4,8), goal=1000, verbose=False):
         wins = [0, 0]
         
         for throws in range(3):
-            for tot, v in outcomes.items():
             for r1 in range(1,4):
                 for r2 in range(1,4):                
                     for r3 in range(1,4):
